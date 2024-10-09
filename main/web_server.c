@@ -5,6 +5,7 @@
 #include "driver/twai.h"
 #include <string.h>
 #include "esp_mac.h"
+#include "esp_timer.h"
 
 #define WIFI_SSID "ESP32_CAN_AP"
 #define WIFI_PASS ""
@@ -12,6 +13,9 @@
 
 static const char *TAG = "WebServer";
 static httpd_handle_t server = NULL;
+static esp_timer_handle_t countdown_timer = NULL;
+static int countdown_value = 30;
+static bool countdown_active = false;
 
 static esp_err_t send_can_frames(void) {
     twai_message_t messages[] = {
@@ -33,6 +37,79 @@ static esp_err_t send_can_frames(void) {
     return ESP_OK;
 }
 
+static void countdown_timer_callback(void* arg) {
+    countdown_value--;
+    if (countdown_value <= 0) {
+        esp_timer_stop(countdown_timer);
+        countdown_active = false;
+        send_can_frames();
+    }
+}
+
+static esp_err_t root_get_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "text/html");
+
+    const char* response_part1 =
+        "<!DOCTYPE html><html><head><title>ESP32 CAN Control</title>"
+        "<script>"
+        "var countdown = 30;"
+        "var countdownActive = false;"
+        "function updateButton() {"
+        "  var btn = document.getElementById('ctrlBtn');"
+        "  if (countdownActive) {"
+        "    btn.innerHTML = 'Countdown: ' + countdown + 's';"
+        "    btn.disabled = true;"
+        "  } else {"
+        "    btn.innerHTML = 'Start Countdown';"
+        "    btn.disabled = false;"
+        "  }"
+        "}"
+        "function startCountdown() {"
+        "  countdownActive = true;"
+        "  countdown = 30;"
+        "  updateButton();";
+
+    const char* response_part2 =
+        "  document.getElementById('explanation').innerHTML = '1. Con el motor encencido, ponga el volante/ruedas en el centro.<br><br>"
+        "2. Gire el volante a la izquierda hasta el tope.<br><br>"
+        "3. Gire el volante a la derecha hasta el tope.<br><br>"
+        "4. Vuelva a centrar el volante/ruedas y espere a que finalice la cuenta atrás.<br><br>"
+        "5. Una vez finalizada este proceso, apague el coche y vuelva a encenderlo<br><br><br><br><br>';"
+        "  var timer = setInterval(function() {"
+        "    countdown--;"
+        "    updateButton();"
+        "    if (countdown <= 0) {"
+        "      clearInterval(timer);"
+        "      countdownActive = false;"
+        "      sendFrames();"
+        "    }"
+        "  }, 1000);"
+        "}"
+        "function sendFrames() {"
+        "  fetch('/button', {method: 'POST'})"
+        "    .then(response => response.text())"
+        "    .then(data => {"
+        "      document.getElementById('result').innerHTML = data;"
+        "    });"
+        "}"
+        "</script>"
+        "</head>"
+        "<body>"
+        "<h1>ESP32 CAN Control</h1>"
+        "<button id='ctrlBtn' onclick='startCountdown()'>Start Countdown</button>"
+        "<div id='explanation'></div>"
+        "<div id='result'></div>"
+        "<script>updateButton();</script>"
+        "</body></html>";
+
+    httpd_resp_send_chunk(req, response_part1, strlen(response_part1));
+    httpd_resp_send_chunk(req, response_part2, strlen(response_part2));
+    httpd_resp_send_chunk(req, NULL, 0); // Sends the final chunk to end the response
+
+    return ESP_OK;
+}
+
 static esp_err_t button_post_handler(httpd_req_t *req)
 {
     esp_err_t result = send_can_frames();
@@ -41,26 +118,6 @@ static esp_err_t button_post_handler(httpd_req_t *req)
     } else {
         httpd_resp_send_500(req);
     }
-    return ESP_OK;
-}
-
-static esp_err_t root_get_handler(httpd_req_t *req)
-{
-    const char* response = "<!DOCTYPE html><html><head><title>ESP32 CAN Control</title></head>"
-                           "<body><h1>ESP32 CAN Control</h1>"
-                           "<button onclick=\"sendFrames()\">Send CAN Frames</button>"
-                           "<div id=\"result\"></div>"
-                           "<script>"
-                           "function sendFrames() {"
-                           "  fetch('/button', {method: 'POST'})"
-                           "    .then(response => response.text())"
-                           "    .then(data => {"
-                           "      document.getElementById('result').innerText = data;"
-                           "    });"
-                           "}"
-                           "</script></body></html>";
-
-    httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
 }
 
@@ -86,6 +143,13 @@ void start_webserver(void)
         httpd_register_uri_handler(server, &root);
         httpd_register_uri_handler(server, &button);
     }
+
+    // Inicializar el temporizador de cuenta regresiva
+    esp_timer_create_args_t timer_args = {
+        .callback = &countdown_timer_callback,
+        .name = "countdown_timer"
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&timer_args, &countdown_timer));
 }
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
