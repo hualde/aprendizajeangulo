@@ -1,32 +1,42 @@
-# _Sample project_
+# ESP32-C3 Control CAN
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+Este proyecto implementa un servidor web en un ESP32-C3 para controlar la comunicación CAN (Controller Area Network). Está diseñado para interactuar con un sistema de dirección de un vehículo.
 
-This is the simplest buildable example. The example is used by command `idf.py create-project`
-that copies the project to user specified path and set it's name. For more information follow the [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project)
+## Características
 
+- Configura el ESP32-C3 como un punto de acceso WiFi.
+- Implementa un servidor web simple con una interfaz de usuario.
+- Envía tramas CAN específicas basadas en la interacción del usuario.
+- Incluye una cuenta regresiva de 30 segundos para la calibración del volante.
 
+## Requisitos de Hardware
 
-## How to use example
-We encourage the users to use the example as a template for the new projects.
-A recommended way is to follow the instructions on a [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project).
+- Placa ESP32-C3
+- Transceptor CAN compatible
 
-## Example folder contents
+## Configuración
 
-The project **sample_project** contains one source file in C language [main.c](main/main.c). The file is located in folder [main](main).
+1. Conecte el transceptor CAN a los pines GPIO 18 (TX) y 19 (RX) del ESP32-C3.
+2. Compile y cargue el código en su ESP32-C3 utilizando el ESP-IDF.
 
-ESP-IDF projects are built using CMake. The project build configuration is contained in `CMakeLists.txt`
-files that provide set of directives and instructions describing the project's source files and targets
-(executable, library, or both). 
+## Uso
 
-Below is short explanation of remaining files in the project folder.
+1. El ESP32-C3 creará un punto de acceso WiFi llamado "ESP32_CAN_AP" (sin contraseña).
+2. Conéctese a esta red WiFi con su dispositivo.
+3. Abra un navegador web y vaya a la dirección IP del ESP32-C3 (generalmente 192.168.4.1).
+4. Siga las instrucciones en la página web para calibrar el sistema de dirección.
 
-```
-├── CMakeLists.txt
-├── main
-│   ├── CMakeLists.txt
-│   └── main.c
-└── README.md                  This is the file you are currently reading
-```
-Additionally, the sample project contains Makefile and component.mk files, used for the legacy Make based build system. 
-They are not used or needed when building with CMake and idf.py.
+## Estructura del Proyecto
+
+- `main/main.c`: Punto de entrada principal, configura el TWAI (CAN) y inicia el servidor web.
+- `main/web_server.c`: Implementa el servidor web y la lógica de control CAN.
+- `main/web_server.h`: Declaraciones de funciones para el servidor web.
+
+## Notas
+
+- Este proyecto está configurado para una velocidad de CAN de 500 kbit/s.
+- Asegúrese de que su vehículo sea compatible con las tramas CAN enviadas por este dispositivo.
+
+## Advertencia
+
+Este proyecto interactúa directamente con el sistema de dirección del vehículo. Úselo bajo su propio riesgo y solo si entiende completamente las implicaciones y los riesgos asociados.
